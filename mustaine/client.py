@@ -1,5 +1,5 @@
-from httplib import HTTPConnection, HTTPSConnection
-from urlparse import urlparse
+from http.client import HTTPConnection, HTTPSConnection
+from urllib.parse import urlparse
 from warnings import warn
 import base64
 import sys
@@ -42,14 +42,12 @@ class HessianProxy(object):
         if self._uri.scheme == 'http':
             self._client = HTTPConnection(self._uri.hostname,
                                           self._uri.port or 80,
-                                          strict=True,
                                           **timeout)
         elif self._uri.scheme == 'https':
             self._client = HTTPSConnection(self._uri.hostname,
                                            self._uri.port or 443,
                                            key_file=key_file,
                                            cert_file=cert_file,
-                                           strict=True,
                                            **timeout)
         else:
             raise NotImplementedError("HessianProxy only supports http:// and https:// URIs")
@@ -93,7 +91,7 @@ class HessianProxy(object):
             request = encode_object(Call(method, args, overload=self._overload))
             self._client.putheader("Content-Length", str(len(request)))
             self._client.endheaders()
-            self._client.send(str(request))
+            self._client.send(request)
 
             response = self._client.getresponse()
             if response.status != 200:

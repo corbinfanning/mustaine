@@ -1,8 +1,8 @@
 import datetime
 import time
 from struct import pack
+import binascii
 
-from types import *
 from mustaine.protocol import *
 
 # Implementation of Hessian 1.0.2 serialization
@@ -33,12 +33,12 @@ def encode_object(obj):
     return encoder(obj)[1]
 
 
-@encoder_for(NoneType)
+@encoder_for(None)
 @returns('null')
 def encode_null(_):
     return 'N'
 
-@encoder_for(BooleanType)
+@encoder_for(bool)
 @returns('bool')
 def encode_boolean(value):
     if value:
@@ -46,27 +46,27 @@ def encode_boolean(value):
     else:
         return 'F'
 
-@encoder_for(IntType)
+@encoder_for(int)
 @returns('int')
 def encode_int(value):
-    return pack('>cl', 'I', value)
+    return pack('>cl', b'I', value)
 
-@encoder_for(LongType)
+@encoder_for(int)
 @returns('long')
 def encode_long(value):
-    return pack('>cq', 'L', value)
+    return pack('>cq', b'L', value)
 
-@encoder_for(FloatType)
+@encoder_for(float)
 @returns('double')
 def encode_double(value):
-    return pack('>cd', 'D', value)
+    return pack('>cd', b'D', value)
 
 @encoder_for(datetime.datetime)
 @returns('date')
 def encode_date(value):
-    return pack('>cq', 'd', int(time.mktime(value.timetuple())) * 1000)
+    return pack('>cq', b'd', int(time.mktime(value.timetuple())) * 1000)
 
-@encoder_for(StringType)
+@encoder_for(str)
 @returns('string')
 def encode_string(value):
     encoded = ''
@@ -81,55 +81,55 @@ def encode_string(value):
     while len(value) > 65535:
         encoded += pack('>cH', 's', 65535)
         encoded += value[:65535]
-        value    = value[65535:]
+        value = value[65535:]
 
-    encoded += pack('>cH', 'S', len(value.decode('utf-8')))
+    encoded += pack('>cH', b'S', len(value.decode('utf-8')))
     encoded += value
     return encoded
 
-@encoder_for(UnicodeType)
+@encoder_for(str)
 @returns('string')
 def encode_unicode(value):
     encoded = ''
 
     while len(value) > 65535:
-        encoded += pack('>cH', 's', 65535)
+        encoded += pack('>cH', b's', 65535)
         encoded += value[:65535].encode('utf-8')
         value    = value[65535:]
 
-    encoded += pack('>cH', 'S', len(value))
+    encoded += pack('>cH', b'S', len(value))
     encoded += value.encode('utf-8')
     return encoded
 
-@encoder_for(ListType)
+@encoder_for(list)
 @returns('list')
 def encode_list(obj):
     encoded = ''.join(map(encode_object, obj))
-    return pack('>2cl', 'V', 'l', -1) + encoded + 'z'
+    return pack('>2cl', b'V', b'l', -1) + str.encode(encoded) + b'z'
 
-@encoder_for(TupleType)
+@encoder_for(tuple)
 @returns('list')
 def encode_tuple(obj):
     encoded = ''.join(map(encode_object, obj))
-    return pack('>2cl', 'V', 'l', len(obj)) + encoded + 'z'
+    return pack('>2cl', b'V', b'l', len(obj)) + str.encode(encoded) + b'z'
 
 def encode_keyval(pair):
     return ''.join((encode_object(pair[0]), encode_object(pair[1])))
 
-@encoder_for(DictType)
+@encoder_for(dict)
 @returns('map')
 def encode_map(obj):
     encoded = ''.join(map(encode_keyval, obj.items()))
-    return pack('>c', 'M') + encoded + 'z'
+    return pack('>c', b'M') + str.encode(encoded) + b'z'
 
 @encoder_for(Object)
 def encode_mobject(obj):
-    encoded  = pack('>cH', 't', len(obj._meta_type)) + obj._meta_type
+    encoded  = pack('>cH', b't', len(obj._meta_type)) + obj._meta_type
     members  = obj.__getstate__()
     del members['__meta_type'] # this is here for pickling. we don't want or need it
 
     encoded += ''.join(map(encode_keyval, members.items()))
-    return (obj._meta_type.rpartition('.')[2], pack('>c', 'M') + encoded + 'z')
+    return (obj._meta_type.rpartition('.')[2], pack('>c', b'M') + encoded + b'z')
 
 @encoder_for(Remote)
 @returns('remote')
@@ -144,11 +144,11 @@ def encode_binary(obj):
     value   = obj.value
 
     while len(value) > 65535:
-        encoded += pack('>cH', 'b', 65535)
+        encoded += pack('>cH', b'b', 65535)
         encoded += value[:65535]
         value    = value[65535:]
 
-    encoded += pack('>cH', 'B', len(value))
+    encoded += pack('>cH', b'B', len(value))
     encoded += value
 
     return encoded
@@ -161,10 +161,10 @@ def encode_call(call):
     arguments = ''
 
     for header,value in call.headers.items():
-        if not isinstance(header, StringType):
+        if not isinstance(header, str):
             raise TypeError("Call header keys must be strings")
 
-        headers += pack('>cH', 'H', len(header)) + header
+        headers += pack('>cH', 'H', len(header)) + str.encode(header)
         headers += encode_object(value)
 
     # TODO: this is mostly duplicated at the top of the file in encode_object. dedup
@@ -176,14 +176,14 @@ def encode_call(call):
 
         data_type, arg = encoder(arg)
         if call.overload:
-            method    += '_' + data_type
-        arguments += arg
+            method += '_' + data_type
+        arguments += arg.decode()
 
-    encoded  = pack('>cBB', 'c', 1, 0)
-    encoded += headers
-    encoded += pack('>cH', 'm', len(method)) + method
-    encoded += arguments
-    encoded += 'z'
+    encoded  = pack('>cBB', b'c', 1, 0).decode()
+    encoded += str.encode(headers)
+    encoded += pack('>cH', b'm', len(method)) + str.encode(method)
+    encoded += str.encode(arguments)
+    encoded += b'z'
 
     return encoded
 

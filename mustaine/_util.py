@@ -1,7 +1,7 @@
 try:
     from cStringIO import StringIO
 except ImportError:
-    from StringIO import StringIO
+    from io import StringIO
 
 class BufferedReader(object):
 
@@ -11,9 +11,9 @@ class BufferedReader(object):
         self.__buffer      = StringIO()
 
         # initial fill
-        chunk = input.read(buffer_size)
+        chunk = input.read()
         self.__byte_count = len(chunk)
-        self.__buffer.write(chunk)
+        self.__buffer.write(chunk.decode())
         self.__buffer.seek(0)
 
     def read(self, byte_count):
